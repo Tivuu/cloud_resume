@@ -1,0 +1,53 @@
+name: Deploy Lovemap
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lovemap/**'   # only runs when lovemap/ files change
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: lovemap/package-lock.json
+
+      # `npm ci` is preferred over `npm install` in CI:
+      # it installs exactly what's in package-lock.json and errors if there's a mismatch,
+      # making builds reproducible
+      - name: Install dependencies
+        working-directory: lovemap
+        run: npm ci
+
+      # The Mapbox public token is injected here as an env var.
+      # React's build system picks up any REACT_APP_* variable and bakes it
+      # into the bundle at build time — no runtime config needed.
+      - name: Build
+        working-directory: lovemap
+        env:
+          REACT_APP_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: npm run build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync lovemap/build/ s3://gnocchimap.mathproblemguy.com/ --delete
