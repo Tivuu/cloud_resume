@@ -165,21 +165,34 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Sid    = "S3Access"
         Effect = "Allow"
         Action = [
+          # Object operations (deploy syncs)
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
           "s3:ListBucket",
+          # Bucket management (Terraform plan/apply reads all of these when refreshing state)
+          "s3:CreateBucket",
+          "s3:DeleteBucket",
           "s3:GetBucketLocation",
           "s3:GetBucketWebsite",
           "s3:PutBucketWebsite",
           "s3:GetBucketPolicy",
           "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy",
           "s3:GetBucketPublicAccessBlock",
           "s3:PutBucketPublicAccessBlock",
-          "s3:CreateBucket",
-          "s3:DeleteBucket",
           "s3:GetBucketVersioning",
-          "s3:PutBucketVersioning"
+          "s3:PutBucketVersioning",
+          "s3:GetBucketAcl",
+          "s3:PutBucketAcl",
+          "s3:GetBucketCORS",
+          "s3:GetBucketLogging",
+          "s3:GetBucketObjectLockConfiguration",
+          "s3:GetBucketRequestPayment",
+          "s3:GetBucketTagging",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:GetReplicationConfiguration"
         ]
         Resource = [
           "arn:aws:s3:::mathproblemguy.com",
