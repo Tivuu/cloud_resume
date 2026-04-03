@@ -1,0 +1,56 @@
+name: Terraform
+
+on:
+  # Run `plan` when a PR touches terraform/ — shows what would change before merge
+  pull_request:
+    paths:
+      - 'terraform/**'
+  # Run `apply` when those changes land on main (i.e. the PR was merged)
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+
+# These permissions are required for OIDC — the workflow must be able to
+# request an identity token from GitHub and verify it with AWS
+permissions:
+  id-token: write   # allows the workflow to mint an OIDC token
+  contents: read    # allows checkout
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Exchange the GitHub OIDC token for temporary AWS credentials.
+      # The role ARN is stored as a secret so it's not hardcoded here.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # `terraform init` downloads providers and connects to the S3 backend.
+      # No credentials flags needed — the AWS env vars from the step above are used.
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      # Always run plan — on PRs this is the only output, on pushes to main it
+      # runs before apply so you can see what's about to happen in the logs
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan
+
+      # Only apply on pushes to main (i.e. merged PRs), not on open PRs
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: terraform
+        run: terraform apply -auto-approve
