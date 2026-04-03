@@ -161,39 +161,14 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # S3: read/write to both website buckets and the state bucket
-        Sid    = "S3Access"
-        Effect = "Allow"
-        Action = [
-          # Object operations (deploy syncs)
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket",
-          # Bucket management (Terraform plan/apply reads all of these when refreshing state)
-          "s3:CreateBucket",
-          "s3:DeleteBucket",
-          "s3:GetBucketLocation",
-          "s3:GetBucketWebsite",
-          "s3:PutBucketWebsite",
-          "s3:GetBucketPolicy",
-          "s3:PutBucketPolicy",
-          "s3:DeleteBucketPolicy",
-          "s3:GetBucketPublicAccessBlock",
-          "s3:PutBucketPublicAccessBlock",
-          "s3:GetBucketVersioning",
-          "s3:PutBucketVersioning",
-          "s3:GetBucketAcl",
-          "s3:PutBucketAcl",
-          "s3:GetBucketCORS",
-          "s3:GetBucketLogging",
-          "s3:GetBucketObjectLockConfiguration",
-          "s3:GetBucketRequestPayment",
-          "s3:GetBucketTagging",
-          "s3:GetEncryptionConfiguration",
-          "s3:GetLifecycleConfiguration",
-          "s3:GetReplicationConfiguration"
-        ]
+        # Full S3 access scoped to only the three buckets this project uses.
+        # Using s3:* here because Terraform v6's AWS provider reads many bucket
+        # attributes during plan (ACLs, acceleration, CORS, logging, etc.) and
+        # enumerating each one individually leads to repeated permission errors.
+        # The blast radius is still limited — only these specific bucket ARNs.
+        Sid      = "S3Access"
+        Effect   = "Allow"
+        Action   = ["s3:*"]
         Resource = [
           "arn:aws:s3:::mathproblemguy.com",
           "arn:aws:s3:::mathproblemguy.com/*",
@@ -204,8 +179,9 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         ]
       },
       {
-        # IAM: Terraform needs to read and manage the OIDC provider and role it created
-        # (so it can update them without drift)
+        # IAM access for Terraform to manage the OIDC provider and this role.
+        # List* operations don't support resource-level restrictions in IAM,
+        # so Resource = "*" is required here — but actions are still enumerated.
         Sid    = "IAMOIDCSelfManage"
         Effect = "Allow"
         Action = [
@@ -219,7 +195,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "iam:PutRolePolicy",
           "iam:GetRolePolicy",
           "iam:DeleteRolePolicy",
-          "iam:ListRolePolicies"
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies"
         ]
         Resource = "*"
       }
